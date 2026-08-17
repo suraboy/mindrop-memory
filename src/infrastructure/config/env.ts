@@ -5,6 +5,15 @@ const envSchema = z.object({
   PORT: z.coerce.number().default(3000),
   LINE_CHANNEL_SECRET: z.string().min(1).default("test-channel-secret"),
   LINE_CHANNEL_ACCESS_TOKEN: z.string().min(1).default("test-channel-access-token"),
+  
+  // Database / Supabase
+  SUPABASE_URL: z.string().optional().default(process.env.NEXT_PUBLIC_SUPABASE_URL || ""),
+  SUPABASE_KEY: z.string().optional().default(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""),
+  
+  // AI Keys for OCR & Vision Understanding
+  OPENAI_API_KEY: z.string().optional().default(process.env.OPENAI_API_KEY || ""),
+  GEMINI_API_KEY: z.string().optional().default(process.env.GEMINI_API_KEY || ""),
+  
   STORAGE_PROVIDER: z.enum(["memory", "local", "s3", "r2"]).default("memory"),
   STORAGE_LOCAL_DIR: z.string().default("./.storage"),
   MAX_IMAGE_SIZE_BYTES: z.coerce.number().default(10 * 1024 * 1024), // 10MB

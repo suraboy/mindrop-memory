@@ -1,10 +1,9 @@
 "use client";
 
 import React from "react";
-import { Sparkles, ArrowRight, TrendingUp, X } from "lucide-react";
+import { Sparkles, ArrowRight, TrendingUp, X, Inbox } from "lucide-react";
 import { useMINDROP } from "@/context/MINDROPContext";
 import { CaptureCard } from "@/components/capture/CaptureCard";
-import { MOCK_WEEKLY_SIGNAL } from "@/lib/mock-data/captures";
 import Link from "next/link";
 
 export function TodayView() {
@@ -16,12 +15,8 @@ export function TodayView() {
     : captures;
 
   // 3 primary attention cards
-  const attentionItems = filteredCaptures
-    .filter((c) => c.id !== "cap-05")
-    .slice(0, 3);
-
-  // Resurfaced item (cap-05: 3 months ago)
-  const resurfacedItem = captures.find((c) => c.id === "cap-05");
+  const attentionItems = filteredCaptures.slice(0, 3);
+  const resurfacedItem = captures.length > 3 ? captures[3] : undefined;
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-8 py-8 sm:py-12 space-y-12">
@@ -30,7 +25,7 @@ export function TodayView() {
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div>
             <div className="text-xs font-semibold uppercase tracking-widest text-zinc-400 mb-1">
-              Monday, Aug 17
+              Today
             </div>
             <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
               Good morning
@@ -67,101 +62,107 @@ export function TodayView() {
         )}
       </header>
 
-      {/* SECTION 1: WORTH YOUR ATTENTION */}
-      <section className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-amber-500" />
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-700 dark:text-zinc-300">
-              Worth your attention
-            </h2>
+      {captures.length === 0 ? (
+        /* Empty State */
+        <div className="text-center py-20 px-4 rounded-3xl border border-dashed border-zinc-200 dark:border-zinc-800 space-y-4 bg-zinc-50/50 dark:bg-zinc-900/30">
+          <div className="w-14 h-14 rounded-2xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto shadow-sm">
+            <Inbox className="w-7 h-7" />
           </div>
-          <span className="text-xs text-zinc-400">
-            Synthesized from 10 recent drops
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {attentionItems.map((item, idx) => (
-            <CaptureCard
-              key={item.id}
-              item={item}
-              variant="attention"
-              badgeText={idx === 0 ? "⚡ Top Signal" : undefined}
-            />
-          ))}
-        </div>
-      </section>
-
-      {/* SECTION 2: RESURFACED MEMORY */}
-      {resurfacedItem && (
-        <section className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-blue-500" />
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-700 dark:text-zinc-300">
-                Worth remembering
-              </h2>
-            </div>
-            <span className="text-xs text-zinc-400">
-              AI Contextual Memory Recall
-            </span>
+          <div className="space-y-1.5">
+            <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+              Your memory layer is ready
+            </h3>
+            <p className="text-xs sm:text-sm text-zinc-500 max-w-md mx-auto leading-relaxed">
+              Send your first thought, link, or photo to your LINE bot. MINDROP will automatically extract, index, and organize it here.
+            </p>
           </div>
-
-          <CaptureCard item={resurfacedItem} variant="resurfaced" />
-        </section>
-      )}
-
-      {/* SECTION 3: WEEKLY SIGNAL */}
-      <section className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-purple-500" />
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-700 dark:text-zinc-300">
-              {MOCK_WEEKLY_SIGNAL.title}
-            </h2>
-          </div>
-          <span className="text-xs text-zinc-400 font-mono">
-            {MOCK_WEEKLY_SIGNAL.period}
-          </span>
-        </div>
-
-        <div className="rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6 shadow-xs">
-          <div className="text-xs text-zinc-500 dark:text-zinc-400 mb-4">
-            {MOCK_WEEKLY_SIGNAL.description} 3 ideas are showing up repeatedly across your saves:
-          </div>
-
-          <div className="space-y-3.5">
-            {MOCK_WEEKLY_SIGNAL.keyTrends.map((trend, i) => (
-              <div
-                key={i}
-                className="flex items-start gap-3 p-3 rounded-xl bg-zinc-50/80 dark:bg-zinc-800/40 border border-zinc-100 dark:border-zinc-800"
-              >
-                <span className="text-xs font-mono font-bold text-zinc-400 dark:text-zinc-500 shrink-0 mt-0.5">
-                  0{i + 1}
-                </span>
-                <span className="text-xs font-medium text-zinc-800 dark:text-zinc-200 leading-relaxed">
-                  {trend}
-                </span>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-5 pt-4 border-t border-zinc-100 dark:border-zinc-800/80 flex items-center justify-between">
-            <span className="text-xs text-zinc-400">
-              Transformed raw noise into actionable signal
-            </span>
-
+          <div className="pt-2">
             <Link
-              href="/ask?q=Summarize%20this%20week's%20recurring%20signals"
-              className="text-xs font-medium text-zinc-900 dark:text-zinc-100 hover:text-blue-600 dark:hover:text-blue-400 flex items-center gap-1 transition-colors"
+              href="/inbox"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-medium bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 shadow-sm hover:opacity-90 transition-opacity"
             >
-              See weekly synthesis
+              <span>View Raw Ingestion Inbox</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </Link>
           </div>
         </div>
-      </section>
+      ) : (
+        <>
+          {/* SECTION 1: WORTH YOUR ATTENTION */}
+          <section className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-amber-500" />
+                <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-700 dark:text-zinc-300">
+                  Worth your attention
+                </h2>
+              </div>
+              <span className="text-xs text-zinc-400">
+                Synthesized from {captures.length} captures
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              {attentionItems.map((item, idx) => (
+                <CaptureCard
+                  key={item.id}
+                  item={item}
+                  variant="attention"
+                  badgeText={idx === 0 ? "⚡ Top Signal" : undefined}
+                />
+              ))}
+            </div>
+          </section>
+
+          {/* SECTION 2: RESURFACED MEMORY */}
+          {resurfacedItem && (
+            <section className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-blue-500" />
+                  <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-700 dark:text-zinc-300">
+                    Worth remembering
+                  </h2>
+                </div>
+                <span className="text-xs text-zinc-400">
+                  AI Contextual Memory Recall
+                </span>
+              </div>
+
+              <CaptureCard item={resurfacedItem} variant="resurfaced" />
+            </section>
+          )}
+
+          {/* SECTION 3: WEEKLY SIGNAL */}
+          <section className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-purple-500" />
+                <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-700 dark:text-zinc-300">
+                  Recent Signal
+                </h2>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6 shadow-xs">
+              <div className="text-xs text-zinc-500 dark:text-zinc-400 mb-4">
+                {captures.length} things captured. Key topics extracted:
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {Array.from(new Set(captures.flatMap((c) => c.topics))).map((t, i) => (
+                  <span
+                    key={i}
+                    className="px-3 py-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-xs font-medium text-zinc-700 dark:text-zinc-300"
+                  >
+                    #{t}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </section>
+        </>
+      )}
     </div>
   );
 }

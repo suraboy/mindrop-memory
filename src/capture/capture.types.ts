@@ -39,6 +39,7 @@ export interface CanonicalCapture {
   source: SourceRef;
   type: CaptureType;
   rawText?: string;
+  ocrText?: string;
   object?: StoredObjectRef;
   status: CaptureStatus;
   receivedAt: string;

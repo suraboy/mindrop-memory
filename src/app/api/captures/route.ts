@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServiceContainer } from "@/infrastructure/container";
-import { MOCK_CAPTURES } from "@/lib/mock-data/captures";
 import { CaptureItem, ProcessingStatus } from "@/types";
-import { CanonicalCapture } from "@/capture/capture.types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,14 +9,9 @@ export async function GET() {
   const container = getServiceContainer();
   
   try {
-    const liveCaptures = await container.repository.listCapturesByActor("line:default");
-    
-    const repoAny = container.repository as unknown as { captures?: Map<string, CanonicalCapture> };
-    const allRepoCaptures: CanonicalCapture[] = repoAny.captures
-      ? Array.from(repoAny.captures.values())
-      : liveCaptures;
+    const liveCaptures = await container.repository.listCapturesByActor();
 
-    const formattedLive: CaptureItem[] = allRepoCaptures.map((c) => {
+    const formatted: CaptureItem[] = liveCaptures.map((c) => {
       const status: ProcessingStatus =
         c.status === "ready"
           ? "ready"
@@ -32,7 +25,7 @@ export async function GET() {
 
       const summary =
         c.understanding?.summary ||
-        (c.rawText ? c.rawText : "Processing content from LINE...");
+        (c.ocrText ? `[OCR Extracted]: ${c.ocrText.slice(0, 150)}...` : c.rawText || "Visual note captured from LINE");
 
       return {
         id: c.id,
@@ -42,7 +35,7 @@ export async function GET() {
           senderName: "LINE User",
         },
         title,
-        rawText: c.rawText,
+        rawText: c.rawText || c.ocrText,
         summary,
         keyIdeas: c.understanding?.keyIdeas || [],
         topics: c.understanding?.topics || ["Inbox", "Uncategorized"],
@@ -54,20 +47,19 @@ export async function GET() {
       };
     });
 
-    formattedLive.sort((a, b) => new Date(b.capturedAt).getTime() - new Date(a.capturedAt).getTime());
-
-    const merged = [...formattedLive, ...MOCK_CAPTURES.filter((m) => !formattedLive.some((l) => l.id === m.id))];
+    formatted.sort((a, b) => new Date(b.capturedAt).getTime() - new Date(a.capturedAt).getTime());
 
     return NextResponse.json({
       status: "ok",
-      liveCount: formattedLive.length,
-      totalCount: merged.length,
-      captures: merged,
+      liveCount: formatted.length,
+      captures: formatted,
     });
-  } catch {
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json({
-      status: "ok",
-      captures: MOCK_CAPTURES,
+      status: "error",
+      error: msg,
+      captures: [],
     });
   }
 }

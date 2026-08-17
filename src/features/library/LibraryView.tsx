@@ -3,7 +3,6 @@
 import React, { useState, useMemo } from "react";
 import { useMINDROP } from "@/context/MINDROPContext";
 import { CaptureCard } from "@/components/capture/CaptureCard";
-import { MOCK_TOPICS } from "@/lib/mock-data/captures";
 import {
   Search,
   Bookmark,
@@ -40,6 +39,19 @@ export function LibraryView() {
     { id: "links", label: "Links", icon: Link2 },
   ];
 
+  // Derive dynamic topic clusters from live captures
+  const dynamicTopics = useMemo(() => {
+    const counts = new Map<string, number>();
+    captures.forEach((c) => {
+      c.topics.forEach((t) => {
+        counts.set(t, (counts.get(t) || 0) + 1);
+      });
+    });
+    return Array.from(counts.entries())
+      .map(([name, count]) => ({ id: name.toLowerCase().replace(/\s+/g, "-"), name, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [captures]);
+
   const filteredCaptures = useMemo(() => {
     return captures.filter((item) => {
       // 1. Topic filter
@@ -53,7 +65,7 @@ export function LibraryView() {
       if (activeTab === "images" && item.type !== "image") return false;
       if (activeTab === "links" && item.type !== "link") return false;
 
-      // 3. Search query (semantic-like text match in EN/TH)
+      // 3. Search query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
         const inTitle = item.title.toLowerCase().includes(q);
@@ -61,12 +73,6 @@ export function LibraryView() {
         const inTopics = item.topics.some((t) => t.toLowerCase().includes(q));
         const inRawText = item.rawText ? item.rawText.toLowerCase().includes(q) : false;
         const inEntities = item.entities ? item.entities.some((e) => e.toLowerCase().includes(q)) : false;
-
-        // Custom query mappings for realistic semantic feeling
-        if (q.includes("retail") && (item.topics.includes("Retail") || inTitle || inSummary)) return true;
-        if (q.includes("agent") && (item.topics.includes("AI Agents") || inTitle || inSummary)) return true;
-        if (q.includes("architecture") && (item.title.toLowerCase().includes("architecture") || item.type === "image")) return true;
-        if (q.includes("รูป") && item.type === "image") return true;
 
         return inTitle || inSummary || inTopics || inRawText || inEntities;
       }
@@ -131,46 +137,48 @@ export function LibraryView() {
       </div>
 
       {/* Topic Chips */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between text-xs text-zinc-400 font-medium uppercase tracking-wider">
-          <span>AI Generated Topic Clusters</span>
-          {selectedTopicFilter && (
-            <button
-              onClick={() => setSelectedTopicFilter(null)}
-              className="text-blue-600 dark:text-blue-400 lowercase hover:underline"
-            >
-              clear topic filter
-            </button>
-          )}
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          {MOCK_TOPICS.map((topic) => {
-            const isSelected = selectedTopicFilter === topic.name;
-            return (
+      {dynamicTopics.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between text-xs text-zinc-400 font-medium uppercase tracking-wider">
+            <span>AI Generated Topic Clusters</span>
+            {selectedTopicFilter && (
               <button
-                key={topic.id}
-                onClick={() => setSelectedTopicFilter(isSelected ? null : topic.name)}
-                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all ${
-                  isSelected
-                    ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 shadow-2xs"
-                    : "bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 border border-zinc-200/80 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700"
-                }`}
+                onClick={() => setSelectedTopicFilter(null)}
+                className="text-blue-600 dark:text-blue-400 lowercase hover:underline"
               >
-                <span>{topic.name}</span>
-                <span
-                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                clear topic filter
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            {dynamicTopics.map((topic) => {
+              const isSelected = selectedTopicFilter === topic.name;
+              return (
+                <button
+                  key={topic.id}
+                  onClick={() => setSelectedTopicFilter(isSelected ? null : topic.name)}
+                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all ${
                     isSelected
-                      ? "bg-zinc-700 text-zinc-200 dark:bg-zinc-300 dark:text-zinc-800"
-                      : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500"
+                      ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 shadow-2xs"
+                      : "bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 border border-zinc-200/80 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700"
                   }`}
                 >
-                  {topic.count}
-                </span>
-              </button>
-            );
-          })}
+                  <span>{topic.name}</span>
+                  <span
+                    className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                      isSelected
+                        ? "bg-zinc-700 text-zinc-200 dark:bg-zinc-300 dark:text-zinc-800"
+                        : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500"
+                    }`}
+                  >
+                    {topic.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Category Tabs & View Switcher */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2 border-b border-zinc-200/80 dark:border-zinc-800 pb-3">
@@ -249,7 +257,7 @@ export function LibraryView() {
             Nothing in your memory matches this yet.
           </h3>
           <p className="text-xs text-zinc-500 max-w-sm mx-auto">
-            Try adjusting your search terms or clearing your topic filters.
+            Drop notes or photos to LINE bot to populate your knowledge library.
           </p>
         </div>
       )}

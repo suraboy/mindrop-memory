@@ -1,4 +1,4 @@
-import { InMemoryCaptureRepository, CaptureRepository } from "@/capture/capture.repository";
+import { InMemoryCaptureRepository, SupabaseCaptureRepository, CaptureRepository } from "@/capture/capture.repository";
 import { MemoryObjectStorage, LocalObjectStorage, ObjectStorage } from "@/storage/object-storage";
 import { MockAIHarnessClient } from "@/harness/harness.client";
 import { AIHarnessClient } from "@/harness/harness.contract";
@@ -27,7 +27,11 @@ export function getServiceContainer(overrides?: Partial<ServiceContainer>): Serv
 
   const config = getConfig();
 
-  const repository = overrides?.repository || new InMemoryCaptureRepository();
+  const repository =
+    overrides?.repository ||
+    (config.SUPABASE_URL && config.SUPABASE_KEY
+      ? new SupabaseCaptureRepository(config.SUPABASE_URL, config.SUPABASE_KEY)
+      : new InMemoryCaptureRepository());
   const storage =
     overrides?.storage ||
     (config.STORAGE_PROVIDER === "local"

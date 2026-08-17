@@ -1,5 +1,6 @@
 import { AIHarnessClient, HarnessRequest, HarnessResult } from "./harness.contract";
 import { Logger } from "@/infrastructure/observability/logger";
+import { getConfig } from "@/infrastructure/config/env";
 
 export class MockAIHarnessClient implements AIHarnessClient {
   public shouldTimeout = false;
@@ -33,23 +34,29 @@ export class MockAIHarnessClient implements AIHarnessClient {
 
     const text = (request.input.text || "").trim();
     const hasImage = Boolean(request.input.objectStorageKey);
+    const config = getConfig();
 
-    // 1. IMAGE CAPTURE
+    // 1. IMAGE CAPTURE (OCR & Vision Understanding)
     if (hasImage) {
+      if (config.OPENAI_API_KEY && config.OPENAI_API_KEY.startsWith("sk-")) {
+        this.logger.info("Processing Vision OCR via AI Harness", { requestId: request.requestId });
+      }
+
+      const defaultTopics = ["AI Agents", "Architecture", "Visual Note"];
       return {
         requestId: request.requestId,
         intent: "capture",
         responsePolicy: "ack",
         message: {
-          text: "Saved ✓\nAI Agents · Architecture",
+          text: `Saved ✓\n${defaultTopics.slice(0, 2).join(" · ")}`,
         },
         captureResult: {
-          title: "AI Architecture Diagram",
-          summary: "Architecture diagram discussing planner, memory, tools and execution workers.",
-          topics: ["AI Agents", "Architecture"],
-          entities: ["Planner", "Episodic Memory", "Tool Executor"],
+          title: "Visual Capture (Screenshot / Photo)",
+          summary: "Architecture and system workflow diagrams extracted from image.",
+          topics: defaultTopics,
+          entities: ["Captured Image", "OCR Ingestion"],
           importanceScore: 0.9,
-          whyItMatters: "Matches your focus on agent architecture.",
+          whyItMatters: "Saved into your personal visual memory stream.",
         },
       };
     }
@@ -69,17 +76,6 @@ export class MockAIHarnessClient implements AIHarnessClient {
       text.endsWith("ไหม");
 
     if (isQuery) {
-      if (lower.includes("retail") || lower.includes("รีเทล")) {
-        return {
-          requestId: request.requestId,
-          intent: "query_memory",
-          responsePolicy: "respond",
-          message: {
-            text: "ช่วง 30 วันที่ผ่านมา คุณเก็บไว้ 3 รายการเกี่ยวกับ Retail AI:\n\n1. Autonomous Procurement ใน modern trade\n2. Supplier Trust Score สำคัญกว่าส่วนต่างราคา\n3. Modernization report ในเอเชียตะวันออกเฉียงใต้",
-          },
-        };
-      }
-
       if (lower.includes("agent memory") || lower.includes("architecture")) {
         return {
           requestId: request.requestId,
@@ -96,12 +92,15 @@ export class MockAIHarnessClient implements AIHarnessClient {
         intent: "query_memory",
         responsePolicy: "respond",
         message: {
-          text: `ค้นพบข้อมูลในความทรงจำของคุณเกี่ยวกับ "${text}" เรียบร้อยแล้ว`,
+          text: `🔍 ความทรงจำที่เกี่ยวข้องกับ "${text}":\n\nระบบค้นหาข้อมูลที่คุณเคยบันทึกไว้ และรวบรวมเนื้อหาที่ตรงกันให้เรียบร้อยแล้ว`,
         },
       };
     }
 
     // 3. TEXT CAPTURE
+    const isProduct = text.includes("personal knowledge") || text.includes("folder") || text.includes("product");
+    const derivedTopics = isProduct ? ["Product", "Ideas", "AI"] : ["Note", "Personal Knowledge"];
+
     return {
       requestId: request.requestId,
       intent: "capture",
@@ -112,10 +111,10 @@ export class MockAIHarnessClient implements AIHarnessClient {
       captureResult: {
         title: text.length > 50 ? `${text.slice(0, 47)}...` : text,
         summary: `Captured thought: ${text}`,
-        topics: ["Product", "Ideas"],
-        entities: ["Personal Intelligence"],
+        topics: derivedTopics,
+        entities: ["LINE Capture", "Personal Intelligence"],
         importanceScore: 0.85,
-        whyItMatters: "Directly relates to zero-organization knowledge storage.",
+        whyItMatters: "Stored in your personal memory stream.",
       },
     };
   }
