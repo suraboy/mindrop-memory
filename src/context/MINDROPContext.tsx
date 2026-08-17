@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
 import { CaptureItem } from "@/types";
 import { MOCK_CAPTURES } from "@/lib/mock-data/captures";
 
@@ -11,6 +11,7 @@ interface MINDROPContextType {
   activeDetailTab: "original" | "understanding" | "connections";
   isCommandOpen: boolean;
   selectedTopicFilter: string | null;
+  refreshCaptures: () => Promise<void>;
   openDetail: (item: CaptureItem, tab?: "original" | "understanding" | "connections") => void;
   closeDetail: () => void;
   setActiveDetailTab: (tab: "original" | "understanding" | "connections") => void;
@@ -23,12 +24,39 @@ interface MINDROPContextType {
 const MINDROPContext = createContext<MINDROPContextType | undefined>(undefined);
 
 export function MINDROPProvider({ children }: { children: ReactNode }) {
-  const [captures] = useState<CaptureItem[]>(MOCK_CAPTURES);
+  const [captures, setCaptures] = useState<CaptureItem[]>(MOCK_CAPTURES);
   const [selectedItem, setSelectedItem] = useState<CaptureItem | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [activeDetailTab, setActiveDetailTab] = useState<"original" | "understanding" | "connections">("understanding");
   const [isCommandOpen, setCommandOpen] = useState(false);
   const [selectedTopicFilter, setSelectedTopicFilter] = useState<string | null>(null);
+
+  const fetchCaptures = useCallback(async () => {
+    try {
+      const res = await fetch("/api/captures");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.captures && Array.isArray(data.captures)) {
+          setCaptures(data.captures);
+        }
+      }
+    } catch {
+      // Fallback silently to existing captures
+    }
+  }, []);
+
+  // Polling for live captures every 4s
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchCaptures();
+    }, 500);
+
+    const interval = setInterval(fetchCaptures, 4000);
+    return () => {
+      clearTimeout(timer);
+      clearInterval(interval);
+    };
+  }, [fetchCaptures]);
 
   // Global shortcut ⌘K / Ctrl+K
   useEffect(() => {
@@ -84,6 +112,7 @@ export function MINDROPProvider({ children }: { children: ReactNode }) {
         activeDetailTab,
         isCommandOpen,
         selectedTopicFilter,
+        refreshCaptures: fetchCaptures,
         openDetail,
         closeDetail,
         setActiveDetailTab,

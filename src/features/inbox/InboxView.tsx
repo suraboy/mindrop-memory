@@ -10,12 +10,20 @@ import {
   FileText,
   Layers,
   Send,
+  RefreshCw,
 } from "lucide-react";
 import { CaptureType } from "@/types";
 
 export function InboxView() {
-  const { captures } = useMINDROP();
+  const { captures, refreshCaptures } = useMINDROP();
   const [activeFilter, setActiveFilter] = useState<"all" | CaptureType>("all");
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await refreshCaptures();
+    setTimeout(() => setIsRefreshing(false), 500);
+  };
 
   const filterTabs: { id: "all" | CaptureType; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { id: "all", label: "All", icon: Layers },
@@ -32,17 +40,28 @@ export function InboxView() {
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-8 py-8 sm:py-12 space-y-8">
       {/* Header */}
-      <header className="space-y-1.5">
-        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-zinc-400">
-          <Inbox className="w-4 h-4 text-emerald-500" />
-          <span>Raw Ingestion Stream</span>
+      <header className="flex items-start justify-between gap-4">
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-zinc-400">
+            <Inbox className="w-4 h-4 text-emerald-500" />
+            <span>Raw Ingestion Stream</span>
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
+            Inbox
+          </h1>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            Everything you&apos;ve dropped into MINDROP. AI handles the organization.
+          </p>
         </div>
-        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-          Inbox
-        </h1>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          Everything you&apos;ve dropped into MINDROP. AI handles the organization.
-        </p>
+
+        <button
+          onClick={handleRefresh}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all border border-zinc-200/60 dark:border-zinc-800"
+          title="Sync latest captures"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin text-emerald-500" : ""}`} />
+          <span>Sync</span>
+        </button>
       </header>
 
       {/* Capture Input Simulation Banner */}
@@ -53,7 +72,7 @@ export function InboxView() {
           </div>
           <div>
             <div className="font-semibold text-zinc-900 dark:text-zinc-100">
-              LINE Gateway Active
+              LINE Gateway Live
             </div>
             <div className="text-zinc-500">
               Drop screenshots, URLs, voice notes or thoughts to LINE bot anytime.
@@ -62,9 +81,9 @@ export function InboxView() {
         </div>
 
         <div className="flex items-center gap-2 self-end sm:self-auto">
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200/60 dark:border-zinc-700">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200/60 dark:border-zinc-700">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            Auto-Indexing
+            Live Sync (4s)
           </span>
         </div>
       </div>
