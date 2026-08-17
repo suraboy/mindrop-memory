@@ -4,6 +4,9 @@ import { getServiceContainer } from "@/infrastructure/container";
 import { getConfig } from "@/infrastructure/config/env";
 import { logger } from "@/infrastructure/observability/logger";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 export async function POST(req: NextRequest) {
   const startTime = Date.now();
   const signature = req.headers.get("x-line-signature");
@@ -12,16 +15,24 @@ export async function POST(req: NextRequest) {
   const rawBody = await req.text();
 
   const config = getConfig();
+  const secret = config.LINE_CHANNEL_SECRET ? config.LINE_CHANNEL_SECRET.trim() : "";
 
   // 1. Signature Verification
-  const isValid = validateLineSignature(rawBody, signature, config.LINE_CHANNEL_SECRET);
+  const isValid = validateLineSignature(rawBody, signature, secret);
   if (!isValid) {
     logger.warn("Invalid LINE webhook signature attempt", {
       hasSignature: Boolean(signature),
+      signaturePreview: signature ? `${signature.slice(0, 8)}...` : "none",
+      secretLength: secret.length,
+      secretPrefix: secret ? `${secret.slice(0, 4)}...` : "none",
       bodyLength: rawBody.length,
+      bodyPreview: rawBody.slice(0, 100),
     });
     return NextResponse.json(
-      { error: "Invalid webhook signature" },
+      {
+        error: "Invalid webhook signature",
+        hint: "Ensure LINE_CHANNEL_SECRET in Vercel matches Channel Secret in Basic settings of channel 7K กระดานบอท",
+      },
       { status: 401 }
     );
   }
