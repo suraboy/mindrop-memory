@@ -12,7 +12,7 @@ export class GeminiAIHarnessClient implements AIHarnessClient {
 
   constructor(
     apiKey: string,
-    modelName: string = "gemini-2.0-flash",
+    modelName: string = "gemini-3.7-flash",
     private storage?: ObjectStorage,
     private repository?: CaptureRepository,
     private logger: Logger = new Logger({ component: "GeminiAIHarnessClient" })

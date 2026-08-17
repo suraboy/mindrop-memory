@@ -126,7 +126,7 @@ export function AskView() {
             {/* Model Badge Display (Configured Model) */}
             <div className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-full bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200/60 dark:border-zinc-700/60 text-xs text-zinc-700 dark:text-zinc-300">
               <Cpu className="w-3.5 h-3.5 text-zinc-400" />
-              <span className="font-medium">Gemini 2.0 Flash</span>
+              <span className="font-medium">Gemini 3.7 Flash</span>
               <span className="px-1.5 py-0.2 rounded text-[10px] font-mono font-semibold bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300">
                 FAST
               </span>

@@ -14,7 +14,7 @@ export interface ModelExecutionConfig {
 
 export class HarnessGovernor {
   constructor(
-    private defaultModel: string = "gemini-2.0-flash",
+    private defaultModel: string = "gemini-3.7-flash",
     private powerLevel: PowerProfileLevel = "balanced",
     private modelOverrides: Partial<Record<ModelTaskType, string>> = {}
   ) {}

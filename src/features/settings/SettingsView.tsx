@@ -63,7 +63,7 @@ export function SettingsView() {
               <span className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">OCR &amp; Vision</span>
               <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">Temp 0.1</span>
             </div>
-            <div className="text-xs font-mono text-zinc-600 dark:text-zinc-300">gemini-2.0-flash</div>
+            <div className="text-xs font-mono text-zinc-600 dark:text-zinc-300">gemini-3.7-flash</div>
             <div className="text-[11px] text-zinc-500">High-precision verbatim Thai/English OCR extraction.</div>
           </div>
 
@@ -72,7 +72,7 @@ export function SettingsView() {
               <span className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">Chat &amp; Q&amp;A</span>
               <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300">Temp 0.4</span>
             </div>
-            <div className="text-xs font-mono text-zinc-600 dark:text-zinc-300">gemini-2.0-flash</div>
+            <div className="text-xs font-mono text-zinc-600 dark:text-zinc-300">gemini-3.7-flash</div>
             <div className="text-[11px] text-zinc-500">Conversational retrieval grounded in memory context.</div>
           </div>
 
@@ -81,7 +81,7 @@ export function SettingsView() {
               <span className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">Deep Analysis</span>
               <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300">Temp 0.2</span>
             </div>
-            <div className="text-xs font-mono text-zinc-600 dark:text-zinc-300">gemini-2.0-flash</div>
+            <div className="text-xs font-mono text-zinc-600 dark:text-zinc-300">gemini-3.7-flash</div>
             <div className="text-[11px] text-zinc-500">Topic cluster synthesis and entity relationship linking.</div>
           </div>
         </div>
