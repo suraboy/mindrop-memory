@@ -70,9 +70,6 @@ export const lineWebhookPayloadSchema = z.object({
 });
 
 export type LineWebhookPayload = z.infer<typeof lineWebhookPayloadSchema>;
-export type LineTextEvent = z.infer<typeof lineTextEventSchema>;
-export type LineImageEvent = z.infer<typeof lineImageEventSchema>;
-export type LineGenericEvent = z.infer<typeof lineGenericEventSchema>;
 
 /**
  * Validates LINE Webhook Signature using HMAC-SHA256 and constant-time comparison.
@@ -86,13 +83,20 @@ export function validateLineSignature(
     return false;
   }
 
+  const cleanSecret = channelSecret.trim();
+  const cleanSig = signatureHeader.trim();
+
+  if (!cleanSecret || !cleanSig) {
+    return false;
+  }
+
   try {
     const rawBuffer = Buffer.isBuffer(rawBody) ? rawBody : Buffer.from(rawBody, "utf-8");
-    const hmac = crypto.createHmac("sha256", channelSecret);
+    const hmac = crypto.createHmac("sha256", cleanSecret);
     hmac.update(rawBuffer);
     const calculatedSignature = hmac.digest("base64");
 
-    const sigBuf = Buffer.from(signatureHeader.trim(), "utf-8");
+    const sigBuf = Buffer.from(cleanSig, "utf-8");
     const calcBuf = Buffer.from(calculatedSignature.trim(), "utf-8");
 
     if (sigBuf.length !== calcBuf.length) {
