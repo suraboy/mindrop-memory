@@ -19,6 +19,13 @@ export class HttpLineMessagingGateway implements LineMessagingGateway {
   private channelAccessToken: string;
 
   async replyText(replyToken: string, text: string): Promise<{ success: boolean; error?: string }> {
+    this.logger.info("Sending LINE reply", {
+      replyTokenPrefix: replyToken ? `${replyToken.slice(0, 6)}...` : "none",
+      textLength: text.length,
+      hasToken: Boolean(this.channelAccessToken),
+      tokenLength: this.channelAccessToken.length,
+    });
+
     try {
       const res = await fetch(`${this.apiEndpoint}/reply`, {
         method: "POST",
@@ -38,6 +45,7 @@ export class HttpLineMessagingGateway implements LineMessagingGateway {
         return { success: false, error: `LINE API ${res.status}: ${errText}` };
       }
 
+      this.logger.info("LINE replyText succeeded");
       return { success: true };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

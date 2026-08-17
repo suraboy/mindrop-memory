@@ -29,32 +29,36 @@ export class GeminiAIHarnessClient implements AIHarnessClient {
   }
 
   /**
-   * Resilient REST fallback directly calling Google AI Studio endpoint
+   * Resilient REST fallback directly calling Google AI Studio endpoint with multi-model fallback chain
    */
-  private async callGeminiRest(model: string, contents: unknown): Promise<string | null> {
+  private async callGeminiRest(requestedModel: string, contents: unknown): Promise<string | null> {
     if (!this.trimmedApiKey || this.trimmedApiKey === "test-gemini-key") return null;
 
-    try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${this.trimmedApiKey}`;
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contents }),
-      });
+    const candidateModels = Array.from(new Set([requestedModel, "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]));
 
-      if (!res.ok) {
-        const errText = await res.text();
-        this.logger.warn("Gemini REST API error", { status: res.status, error: errText });
-        return null;
+    for (const model of candidateModels) {
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${this.trimmedApiKey}`;
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contents }),
+        });
+
+        if (res.ok) {
+          const json = await res.json();
+          const text = json?.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (text) return text;
+        } else {
+          const errText = await res.text();
+          this.logger.warn(`Gemini model ${model} error, trying next`, { status: res.status, error: errText });
+        }
+      } catch (err) {
+        this.logger.error(`Gemini fetch exception for model ${model}`, err);
       }
-
-      const json = await res.json();
-      const text = json?.candidates?.[0]?.content?.parts?.[0]?.text;
-      return text || null;
-    } catch (err) {
-      this.logger.error("Gemini REST fetch failed", err);
-      return null;
     }
+
+    return null;
   }
 
   async process(request: HarnessRequest): Promise<HarnessResult> {
