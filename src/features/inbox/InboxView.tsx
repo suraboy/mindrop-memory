@@ -38,7 +38,7 @@ export function InboxView() {
     : captures.filter((c) => c.type === activeFilter);
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-8 py-8 sm:py-12 space-y-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-8 py-8 sm:py-10 space-y-8">
       {/* Header */}
       <header className="flex items-start justify-between gap-4">
         <div className="space-y-1.5">

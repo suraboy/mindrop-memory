@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -12,19 +12,34 @@ import {
   Search,
   Command,
 } from "lucide-react";
-import { MOCK_TOPICS } from "@/lib/mock-data/captures";
 import { useMINDROP } from "@/context/MINDROPContext";
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { setCommandOpen, selectedTopicFilter, setSelectedTopicFilter } = useMINDROP();
+  const { captures, setCommandOpen, selectedTopicFilter, setSelectedTopicFilter } = useMINDROP();
+
+  const inboxBadge = captures.length > 0 ? String(captures.length) : null;
 
   const navItems = [
     { href: "/", label: "Today", icon: Sparkles, badge: null },
-    { href: "/inbox", label: "Inbox", icon: Inbox, badge: "3" },
+    { href: "/inbox", label: "Inbox", icon: Inbox, badge: inboxBadge },
     { href: "/library", label: "Library", icon: Bookmark, badge: null },
     { href: "/ask", label: "Ask", icon: Layers, badge: "AI" },
   ];
+
+  // Derive dynamic topic clusters from live captures
+  const dynamicTopics = useMemo(() => {
+    const counts = new Map<string, number>();
+    captures.forEach((c) => {
+      c.topics.forEach((t) => {
+        counts.set(t, (counts.get(t) || 0) + 1);
+      });
+    });
+    return Array.from(counts.entries())
+      .map(([name, count]) => ({ id: name.toLowerCase().replace(/\s+/g, "-"), name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 6);
+  }, [captures]);
 
   return (
     <aside className="hidden md:flex w-64 flex-col justify-between border-r border-zinc-200/80 dark:border-zinc-800 bg-white/70 dark:bg-zinc-950/70 backdrop-blur-md p-4 shrink-0 h-screen sticky top-0">
@@ -96,39 +111,41 @@ export function Sidebar() {
           })}
         </nav>
 
-        {/* Divider */}
-        <div className="pt-2 border-t border-zinc-100 dark:border-zinc-800/80">
-          <div className="flex items-center justify-between px-2 pb-1.5">
-            <span className="text-[11px] font-semibold tracking-wider uppercase text-zinc-400">
-              AI Topics
-            </span>
-            <span className="text-[10px] text-zinc-400">Auto-clustered</span>
-          </div>
+        {/* Divider & Dynamic Topics */}
+        {dynamicTopics.length > 0 && (
+          <div className="pt-2 border-t border-zinc-100 dark:border-zinc-800/80">
+            <div className="flex items-center justify-between px-2 pb-1.5">
+              <span className="text-[11px] font-semibold tracking-wider uppercase text-zinc-400">
+                AI Topics
+              </span>
+              <span className="text-[10px] text-zinc-400">Auto-clustered</span>
+            </div>
 
-          <div className="space-y-0.5">
-            {MOCK_TOPICS.map((topic) => {
-              const isFiltered = selectedTopicFilter === topic.name;
-              return (
-                <button
-                  key={topic.id}
-                  onClick={() => {
-                    setSelectedTopicFilter(isFiltered ? null : topic.name);
-                  }}
-                  className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs transition-colors text-left ${
-                    isFiltered
-                      ? "bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 font-medium"
-                      : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900 hover:text-zinc-900 dark:hover:text-zinc-200"
-                  }`}
-                >
-                  <span className="truncate">{topic.name}</span>
-                  <span className="text-[10px] text-zinc-400 font-mono">
-                    {topic.count}
-                  </span>
-                </button>
-              );
-            })}
+            <div className="space-y-0.5">
+              {dynamicTopics.map((topic) => {
+                const isFiltered = selectedTopicFilter === topic.name;
+                return (
+                  <button
+                    key={topic.id}
+                    onClick={() => {
+                      setSelectedTopicFilter(isFiltered ? null : topic.name);
+                    }}
+                    className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs transition-colors text-left ${
+                      isFiltered
+                        ? "bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 font-medium"
+                        : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900 hover:text-zinc-900 dark:hover:text-zinc-200"
+                    }`}
+                  >
+                    <span className="truncate">{topic.name}</span>
+                    <span className="text-[10px] text-zinc-400 font-mono">
+                      {topic.count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Footer / LINE Sync status & Settings */}

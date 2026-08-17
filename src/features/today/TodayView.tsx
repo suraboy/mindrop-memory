@@ -19,7 +19,7 @@ export function TodayView() {
   const resurfacedItem = captures.length > 3 ? captures[3] : undefined;
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-8 py-8 sm:py-12 space-y-12">
+    <div className="max-w-7xl mx-auto px-4 sm:px-8 py-8 sm:py-10 space-y-10">
       {/* Top Welcome & Global Command Prompt */}
       <header className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">

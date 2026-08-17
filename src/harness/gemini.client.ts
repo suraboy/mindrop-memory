@@ -1,4 +1,5 @@
 import { AIHarnessClient, HarnessRequest, HarnessResult } from "./harness.contract";
+import { HarnessGovernor } from "./harness.governor";
 import { ObjectStorage } from "@/storage/object-storage";
 import { CaptureRepository } from "@/capture/capture.repository";
 import { Logger } from "@/infrastructure/observability/logger";
@@ -6,10 +7,11 @@ import { GoogleGenAI } from "@google/genai";
 
 export class GeminiAIHarnessClient implements AIHarnessClient {
   private ai: GoogleGenAI | null = null;
+  private governor: HarnessGovernor;
 
   constructor(
     private apiKey: string,
-    private modelName: string = "gemini-2.0-flash",
+    modelName: string = "gemini-2.0-flash",
     private storage?: ObjectStorage,
     private repository?: CaptureRepository,
     private logger: Logger = new Logger({ component: "GeminiAIHarnessClient" })
@@ -17,43 +19,45 @@ export class GeminiAIHarnessClient implements AIHarnessClient {
     if (this.apiKey && this.apiKey !== "test-gemini-key") {
       this.ai = new GoogleGenAI({ apiKey: this.apiKey });
     }
+    this.governor = new HarnessGovernor(modelName);
   }
 
   async process(request: HarnessRequest): Promise<HarnessResult> {
     const text = (request.input.text || "").trim();
     const hasImage = Boolean(request.input.objectStorageKey);
 
-    // 1. MULTIMODAL OCR & VISION UNDERSTANDING
+    // 1. MULTIMODAL OCR & VISION (Governed Task: "ocr")
     if (hasImage && request.input.objectStorageKey && this.storage && this.ai) {
+      const ocrConfig = this.governor.getExecutionConfig("ocr");
       try {
         const stored = await this.storage.get(request.input.objectStorageKey);
         if (stored?.body) {
-          this.logger.info("Executing Gemini Vision OCR", {
-            model: this.modelName,
-            mimeType: stored.mimeType,
-            bytes: stored.sizeBytes,
+          this.logger.info("Executing Governed Gemini OCR", {
+            model: ocrConfig.model,
+            temperature: ocrConfig.temperature,
+            sizeBytes: stored.sizeBytes,
           });
 
           const base64Data = stored.body.toString("base64");
-          const prompt = `You are MINDROP AI Memory Harness — a personal intelligence system.
-The user sent this image into their LINE chat to store in their personal knowledge base.
+          const prompt = `You are MINDROP AI Memory Harness — high precision OCR & Knowledge Extractor.
+Extract verbatim text and analyze this capture.
 
-Analyze this image and return a STRICT JSON object with these exact keys:
+Return STRICT JSON:
 {
-  "ocrText": "Verbatim extracted text from the image in its original language (Thai/English). Include all legible titles, bullet points, code, or captions.",
-  "title": "Concise descriptive title for this capture (under 60 characters)",
-  "summary": "Clear 1-2 sentence understanding of what this image represents and why it is useful",
-  "topics": ["2 to 4 clean categorical topics (e.g. AI Agents, Architecture, Retail, Design, Ideas)"],
-  "entities": ["3 to 5 key entities, tools, models, frameworks, or concepts mentioned"],
-  "keyIdeas": ["2 to 3 main takeaway ideas"],
+  "ocrText": "Verbatim extracted text from image (Thai/English).",
+  "title": "Concise descriptive title (< 60 chars)",
+  "summary": "1-2 sentence core takeaway",
+  "topics": ["2-4 clean topics"],
+  "entities": ["3-5 entities/frameworks"],
+  "keyIdeas": ["2-3 main takeaway points"],
   "importanceScore": 0.9,
-  "whyItMatters": "Why this is worth remembering",
+  "whyItMatters": "Why this is useful to remember",
   "replyAck": "Saved ✓\\nTopic1 · Topic2"
 }
-Output ONLY valid JSON. No markdown code blocks, no backticks.`;
+Output ONLY valid JSON.`;
 
           const response = await this.ai.models.generateContent({
-            model: this.modelName,
+            model: ocrConfig.model,
             contents: [
               {
                 role: "user",
@@ -93,11 +97,11 @@ Output ONLY valid JSON. No markdown code blocks, no backticks.`;
           };
         }
       } catch (err) {
-        this.logger.error("Gemini Vision call error, falling back to local extractor", err);
+        this.logger.error("Governed OCR call failed, using fallback", err);
       }
     }
 
-    // 2. CONVERSATIONAL MEMORY QUERY (Q&A against past captures)
+    // 2. CONVERSATIONAL MEMORY QUERY (Governed Task: "chat")
     const lower = text.toLowerCase();
     const isQuery =
       lower.includes("เคยส่ง") ||
@@ -111,13 +115,14 @@ Output ONLY valid JSON. No markdown code blocks, no backticks.`;
       text.endsWith("ไหม");
 
     if (isQuery && this.ai) {
+      const chatConfig = this.governor.getExecutionConfig("chat");
       try {
         let memoryContext = "No prior memories found.";
         if (this.repository) {
           const pastCaptures = await this.repository.listCapturesByActor(request.actorId);
           if (pastCaptures.length > 0) {
             memoryContext = pastCaptures
-              .slice(0, 15)
+              .slice(0, 20)
               .map(
                 (c, i) =>
                   `[Memory ${i + 1}] Title: ${c.understanding?.title || c.rawText || "Untitled"}\nTopics: ${(c.understanding?.topics || []).join(", ")}\nSummary: ${c.understanding?.summary || c.ocrText || c.rawText}\nDate: ${c.receivedAt}`
@@ -126,9 +131,7 @@ Output ONLY valid JSON. No markdown code blocks, no backticks.`;
           }
         }
 
-        const queryPrompt = `You are MINDROP — a personal intelligence system.
-The user is asking a conversational question in LINE about what they have previously captured.
-
+        const queryPrompt = `You are MINDROP — grounded personal intelligence companion.
 USER QUESTION: "${text}"
 
 USER'S CAPTURED MEMORY CONTEXT:
@@ -136,10 +139,10 @@ ${memoryContext}
 
 Respond in a warm, concise, intelligent tone in Thai (or user's language).
 Highlight key recurring themes, specific items they saved, and key takeaways.
-Do not make up facts not present in memory context. If nothing matches, politely inform them.`;
+Ground answers strictly in memory context.`;
 
         const res = await this.ai.models.generateContent({
-          model: this.modelName,
+          model: chatConfig.model,
           contents: queryPrompt,
         });
 
@@ -152,20 +155,21 @@ Do not make up facts not present in memory context. If nothing matches, politely
           },
         };
       } catch (err) {
-        this.logger.error("Gemini conversational query error", err);
+        this.logger.error("Governed conversational query error", err);
       }
     }
 
-    // 3. TEXT CAPTURE WITH GEMINI UNDERSTANDING
+    // 3. TEXT CAPTURE & DEEP ANALYSIS (Governed Task: "analysis")
     if (this.ai && text) {
+      const analysisConfig = this.governor.getExecutionConfig("analysis");
       try {
         const textPrompt = `You are MINDROP AI Memory Harness.
-The user sent this note/link into their personal LINE chat:
+Analyze this user note/link:
 "${text}"
 
-Analyze this capture and return a STRICT JSON object:
+Return STRICT JSON:
 {
-  "title": "short title under 50 characters",
+  "title": "short title (< 50 chars)",
   "summary": "1-2 sentence understanding in original language",
   "topics": ["2-3 concise topics"],
   "entities": ["key named entities or concepts"],
@@ -176,7 +180,7 @@ Analyze this capture and return a STRICT JSON object:
 Output ONLY valid JSON.`;
 
         const res = await this.ai.models.generateContent({
-          model: this.modelName,
+          model: analysisConfig.model,
           contents: textPrompt,
         });
 
@@ -202,11 +206,11 @@ Output ONLY valid JSON.`;
           },
         };
       } catch (err) {
-        this.logger.warn("Gemini text analysis failed, using fallback", err);
+        this.logger.warn("Governed text analysis failed, using fallback", err);
       }
     }
 
-    // Fallback if Gemini is not configured or offline
+    // Fallback if AI is offline
     const isProduct = text.includes("personal knowledge") || text.includes("folder") || text.includes("product");
     const defaultTopics = isProduct ? ["Product", "Ideas", "AI"] : ["Note", "Personal Knowledge"];
 

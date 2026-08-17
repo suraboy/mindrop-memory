@@ -82,7 +82,7 @@ export function LibraryView() {
   }, [captures, selectedTopicFilter, activeTab, searchQuery]);
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-8 py-8 sm:py-12 space-y-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-8 py-8 sm:py-10 space-y-8">
       {/* Header */}
       <header className="space-y-1.5">
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-zinc-400">
