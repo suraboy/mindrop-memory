@@ -99,15 +99,13 @@ export class IngestionService {
       await this.repository.saveJob(job);
       accepted += 1;
 
-      // 5. Fire & Forget Background Processing (Do not hold up webhook HTTP response)
-      queueMicrotask(async () => {
-        try {
-          await this.processor.processJob(job.id);
-          await this.repository.markEventProcessed(normalized.idempotencyKey);
-        } catch (err) {
-          this.logger.error("Async processor execution error", { jobId: job.id, error: err });
-        }
-      });
+      // 5. Process job and deliver response to LINE
+      try {
+        await this.processor.processJob(job.id);
+        await this.repository.markEventProcessed(normalized.idempotencyKey);
+      } catch (err) {
+        this.logger.error("Processor execution error", { jobId: job.id, error: err });
+      }
     }
 
     return { accepted, duplicate, ignored, capturesCreated };
