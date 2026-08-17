@@ -13,6 +13,7 @@ const envSchema = z.object({
   // AI Keys for OCR & Vision Understanding
   OPENAI_API_KEY: z.string().optional().default(process.env.OPENAI_API_KEY || ""),
   GEMINI_API_KEY: z.string().optional().default(process.env.GEMINI_API_KEY || ""),
+  GEMINI_MODEL: z.string().default(process.env.GEMINI_MODEL || "gemini-2.0-flash"),
   
   STORAGE_PROVIDER: z.enum(["memory", "local", "s3", "r2"]).default("memory"),
   STORAGE_LOCAL_DIR: z.string().default("./.storage"),

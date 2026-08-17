@@ -11,6 +11,15 @@ export async function GET() {
     config.LINE_CHANNEL_ACCESS_TOKEN &&
     config.LINE_CHANNEL_ACCESS_TOKEN !== "test-channel-access-token"
   );
+  const hasGemini = Boolean(
+    config.GEMINI_API_KEY &&
+    config.GEMINI_API_KEY !== ""
+  );
+  const hasSupabase = Boolean(
+    config.SUPABASE_URL &&
+    config.SUPABASE_KEY &&
+    config.SUPABASE_URL !== ""
+  );
 
   return NextResponse.json({
     status: "ok",
@@ -18,8 +27,10 @@ export async function GET() {
     timestamp: new Date().toISOString(),
     diagnostics: {
       lineSecretConfigured: hasLineSecret,
-      lineSecretLength: config.LINE_CHANNEL_SECRET ? config.LINE_CHANNEL_SECRET.length : 0,
       lineTokenConfigured: hasLineToken,
+      geminiConfigured: hasGemini,
+      geminiModel: config.GEMINI_MODEL,
+      supabaseConfigured: hasSupabase,
       storageProvider: config.STORAGE_PROVIDER,
     },
   });

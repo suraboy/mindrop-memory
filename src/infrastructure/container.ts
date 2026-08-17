@@ -1,6 +1,7 @@
 import { InMemoryCaptureRepository, SupabaseCaptureRepository, CaptureRepository } from "@/capture/capture.repository";
 import { MemoryObjectStorage, LocalObjectStorage, ObjectStorage } from "@/storage/object-storage";
 import { MockAIHarnessClient } from "@/harness/harness.client";
+import { GeminiAIHarnessClient } from "@/harness/gemini.client";
 import { AIHarnessClient } from "@/harness/harness.contract";
 import { HttpLineMessagingGateway, MockLineMessagingGateway, LineMessagingGateway } from "@/channels/line/line.gateway";
 import { InteractionService } from "@/interactions/interaction.service";
@@ -38,7 +39,11 @@ export function getServiceContainer(overrides?: Partial<ServiceContainer>): Serv
       ? new LocalObjectStorage(config.STORAGE_LOCAL_DIR)
       : new MemoryObjectStorage());
 
-  const harness = overrides?.harness || new MockAIHarnessClient();
+  const harness =
+    overrides?.harness ||
+    (config.GEMINI_API_KEY
+      ? new GeminiAIHarnessClient(config.GEMINI_API_KEY, config.GEMINI_MODEL, storage, repository)
+      : new MockAIHarnessClient());
   const lineGateway =
     overrides?.lineGateway ||
     (config.LINE_CHANNEL_ACCESS_TOKEN && config.LINE_CHANNEL_ACCESS_TOKEN !== "test-channel-access-token"
