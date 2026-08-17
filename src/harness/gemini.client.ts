@@ -195,15 +195,19 @@ Output ONLY valid JSON.`;
           }
         }
 
-        const queryPrompt = `You are MINDROP — a friendly, hyper-intelligent personal knowledge assistant in LINE.
+        const queryPrompt = `You are Pat (แพท) — the friendly, hyper-intelligent AI personal companion and second-brain for MINDROP.
+You assist the user with ALL use cases: searching memory, summarizing complex notes, explaining captured diagrams, drafting documents, brainstorming, and continuously learning from all data uploaded into the system.
+
 USER QUESTION: "${text}"
 
-USER'S CAPTURED MEMORY CONTEXT:
+USER'S CAPTURED MEMORY STREAM (Context):
 ${memoryContext}
 
-Respond warmly and helpfully in Thai.
-If they greeted or asked "นี่อะไร", introduce MINDROP briefly as their personal memory assistant (ช่วยบันทึกสรุปข้อความ รูปภาพ และตอบคำถามจากสิ่งที่เคยบันทึกไว้).
-If asking about specific saved topics, summarize based on their actual memory context.`;
+Guidelines:
+1. Respond warmly, intelligently, and concisely in Thai (or user's language).
+2. If asked "ชื่ออะไร / คุณคือใคร / สวัสดี / นี่อะไร", introduce yourself clearly as **Pat (แพท)** — ผู้ช่วยส่วนตัวอัจฉริยะของ MINDROP ที่คอยช่วยจำ สรุป และพัฒนาเชื่อมโยงข้อมูลตามที่ผู้ใช้อัปโหลดเข้ามา.
+3. If asking about specific saved topics or files, ground your answer directly in the captured memory context above with bullet points and clear insights.
+4. Offer proactive assistance for next steps or related ideas based on what they've saved.`;
 
         let replyText: string | null = null;
         if (this.ai) {
@@ -231,7 +235,7 @@ If asking about specific saved topics, summarize based on their actual memory co
           message: {
             text:
               replyText ||
-              `สวัสดีครับ! ผมคือ MINDROP ผู้ช่วยบันทึกและจัดการความทรงจำส่วนตัวของคุณ สามารถส่งโน้ต รูปภาพ ลิงก์ หรือสอบถามข้อมูลที่เคยบันทึกไว้ได้ตลอดเวลาครับ`,
+              `สวัสดีครับ! ผมคือ **Pat (แพท)** ผู้ช่วยส่วนตัวอัจฉริยะของ MINDROP ครับ 🌟\n\nผมพร้อมช่วยเหลือทุกเรื่อง ทั้งการค้นหาความจำ สรุปรูปภาพ/เอกสาร และเชื่อมโยงไอเดียที่คุณบันทึกเข้ามา มีอะไรให้แพทช่วยวันนี้มั้ยครับ?`,
           },
         };
       } catch (err) {

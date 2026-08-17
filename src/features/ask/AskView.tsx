@@ -12,7 +12,6 @@ import {
   FileText,
   Image as ImageIcon,
   Link2,
-  Cpu,
   Scan,
   Zap,
   Lightbulb,
@@ -53,41 +52,50 @@ export function AskView() {
     setInputQuery("");
     setIsSynthesizing(true);
 
-    setTimeout(() => {
-      let aiResponseContent = "";
-      let groundedSources: CaptureItem[] = [];
+    try {
+      const res = await fetch("/api/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: queryText }),
+      });
 
-      const qLower = queryText.toLowerCase();
-
-      if (qLower.includes("retail") || qLower.includes("สรุปเรื่อง retail")) {
-        aiResponseContent =
-          "จากข้อมูลที่คุณบันทึกเกี่ยวกับ **Retail AI** ในช่วง 30 วันที่ผ่านมา มีประเด็นสำคัญดังนี้:\n\n1. **Autonomous Procurement:** ร้านค้าชั้นนำเริ่มทดลองใช้ Agent เปรียบเทียบซัพพลายเออร์และออก PO อัตโนมัติ\n2. **Supplier Trust Score:** ปัจจัยสำคัญที่สุดไม่ใช่ราคาที่ถูกที่สุด แต่คือความน่าเชื่อถือและประวัติการส่งมอบตรงเวลา\n3. **Modernization in ASEAN:** กว่า 73% ของ modern trade ในเอเชียตะวันออกเฉียงใต้กำลังย้ายไปสู่ระบบเติมสต็อกอัตโนมัติ";
-        groundedSources = captures.filter((c) => c.topics.some((t) => t.toLowerCase().includes("retail"))).slice(0, 3);
-      } else if (qLower.includes("ideas") || qLower.includes("appearing") || qLower.includes("signal")) {
-        aiResponseContent =
-          "Here are the core recurring product & technical ideas across your recent memory drops:\n\n1. **Zero-Organization PKM:** Eliminating manual tagging/folders completely in favor of ambient indexing.\n2. **LINE as Frictionless Ingestion Gateway:** Dropping text/images into LINE with sub-500ms acknowledgment.\n3. **LLM as CPU / Context as RAM:** Treating memory retrieval as dynamic operating system paging.";
-        groundedSources = captures.slice(0, 3);
-      } else if (qLower.includes("architecture") || qLower.includes("screenshot") || qLower.includes("รูป")) {
-        aiResponseContent =
-          "I located the architecture diagrams and visual notes in your personal memory stream:\n\n1. **AI Agent Architecture:** Diagram covering user intent, planner reflection loop, episodic memory, and tool execution.\n2. **Whiteboard Sketch:** Outlines context reduction stages before prompt buffer injection.";
-        groundedSources = captures.filter((c) => c.type === "image").slice(0, 2);
-      } else {
-        aiResponseContent = `Found relevant context in your personal memory for "${queryText}".\n\nYour saves highlight practical execution workflows, prioritizing ambient zero-organization indexing and fast retrieval.`;
-        groundedSources = captures.slice(0, 3);
-      }
+      const data = await res.json();
+      const answerText = data.answer || `สวัสดีครับ! MINDROP กำลังช่วยค้นหาและรวบรวมข้อมูลที่คุณบันทึกไว้ครับ`;
+      const groundedSources: CaptureItem[] = (data.sources || []).map((s: Partial<CaptureItem>, i: number) => ({
+        id: s.id || `src-${i}`,
+        type: s.type || "text",
+        source: { channel: "line", provider: "LINE" },
+        title: s.title || "Memory Item",
+        summary: s.summary || "Captured context",
+        topics: s.topics || ["Memory"],
+        capturedAt: new Date().toISOString(),
+        status: "ready",
+        importanceScore: 0.8,
+      }));
 
       messageCounter.current += 1;
       const aiMsg: ChatMessage = {
         id: `msg-ai-${messageCounter.current}`,
         role: "assistant",
-        content: aiResponseContent,
+        content: answerText,
         timestamp: "Just now",
-        sources: groundedSources,
+        sources: groundedSources.length > 0 ? groundedSources : captures.slice(0, 2),
       };
 
       setMessages((prev) => [...prev, aiMsg]);
+    } catch {
+      messageCounter.current += 1;
+      const aiMsg: ChatMessage = {
+        id: `msg-ai-${messageCounter.current}`,
+        role: "assistant",
+        content: `สวัสดีครับ! ผมคือ MINDROP ผู้ช่วยความจำส่วนตัวของคุณ พร้อมตอบคำถามจากโน้ตและรูปภาพที่คุณบันทึกไว้ครับ`,
+        timestamp: "Just now",
+        sources: captures.slice(0, 2),
+      };
+      setMessages((prev) => [...prev, aiMsg]);
+    } finally {
       setIsSynthesizing(false);
-    }, 600);
+    }
   };
 
   const getTypeIcon = (type: string) => {
@@ -116,7 +124,7 @@ export function AskView() {
                 handleAsk(inputQuery);
               }
             }}
-            placeholder="Ask anything"
+            placeholder="Ask Pat anything... (e.g. 'สรุปเรื่องที่เคยบันทึกไว้')"
             rows={3}
             className="w-full bg-transparent resize-none outline-none text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 p-1"
           />
@@ -125,10 +133,12 @@ export function AskView() {
           <div className="flex items-center justify-between pt-3 border-t border-zinc-100 dark:border-zinc-800/80">
             {/* Model Badge Display (Configured Model) */}
             <div className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-full bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200/60 dark:border-zinc-700/60 text-xs text-zinc-700 dark:text-zinc-300">
-              <Cpu className="w-3.5 h-3.5 text-zinc-400" />
-              <span className="font-medium">Gemini 3.7 Flash</span>
+              <Sparkles className="w-3.5 h-3.5 text-blue-500" />
+              <span className="font-semibold text-zinc-900 dark:text-zinc-100">Pat</span>
+              <span className="text-zinc-400">·</span>
+              <span className="font-medium text-zinc-600 dark:text-zinc-300">Gemini 3.7 Flash</span>
               <span className="px-1.5 py-0.2 rounded text-[10px] font-mono font-semibold bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300">
-                FAST
+                ACTIVE
               </span>
             </div>
 
