@@ -11,9 +11,12 @@ export class HttpLineMessagingGateway implements LineMessagingGateway {
   private dataEndpoint = "https://api-data.line.me/v2/bot/message";
 
   constructor(
-    private channelAccessToken: string,
+    channelAccessToken: string,
     private logger: Logger = new Logger({ component: "LineGateway" })
-  ) {}
+  ) {
+    this.channelAccessToken = (channelAccessToken || "").trim();
+  }
+  private channelAccessToken: string;
 
   async replyText(replyToken: string, text: string): Promise<{ success: boolean; error?: string }> {
     try {

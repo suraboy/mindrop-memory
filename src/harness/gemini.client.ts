@@ -8,33 +8,67 @@ import { GoogleGenAI } from "@google/genai";
 export class GeminiAIHarnessClient implements AIHarnessClient {
   private ai: GoogleGenAI | null = null;
   private governor: HarnessGovernor;
+  private trimmedApiKey: string;
 
   constructor(
-    private apiKey: string,
+    apiKey: string,
     modelName: string = "gemini-2.0-flash",
     private storage?: ObjectStorage,
     private repository?: CaptureRepository,
     private logger: Logger = new Logger({ component: "GeminiAIHarnessClient" })
   ) {
-    if (this.apiKey && this.apiKey !== "test-gemini-key") {
-      this.ai = new GoogleGenAI({ apiKey: this.apiKey });
+    this.trimmedApiKey = (apiKey || "").trim();
+    if (this.trimmedApiKey && this.trimmedApiKey !== "test-gemini-key") {
+      try {
+        this.ai = new GoogleGenAI({ apiKey: this.trimmedApiKey });
+      } catch (err) {
+        this.logger.error("Failed to initialize GoogleGenAI SDK", err);
+      }
     }
     this.governor = new HarnessGovernor(modelName);
+  }
+
+  /**
+   * Resilient REST fallback directly calling Google AI Studio endpoint
+   */
+  private async callGeminiRest(model: string, contents: unknown): Promise<string | null> {
+    if (!this.trimmedApiKey || this.trimmedApiKey === "test-gemini-key") return null;
+
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${this.trimmedApiKey}`;
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contents }),
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        this.logger.warn("Gemini REST API error", { status: res.status, error: errText });
+        return null;
+      }
+
+      const json = await res.json();
+      const text = json?.candidates?.[0]?.content?.parts?.[0]?.text;
+      return text || null;
+    } catch (err) {
+      this.logger.error("Gemini REST fetch failed", err);
+      return null;
+    }
   }
 
   async process(request: HarnessRequest): Promise<HarnessResult> {
     const text = (request.input.text || "").trim();
     const hasImage = Boolean(request.input.objectStorageKey);
 
-    // 1. MULTIMODAL OCR & VISION (Governed Task: "ocr")
-    if (hasImage && request.input.objectStorageKey && this.storage && this.ai) {
+    // 1. MULTIMODAL OCR & VISION (Task: "ocr")
+    if (hasImage && request.input.objectStorageKey && this.storage) {
       const ocrConfig = this.governor.getExecutionConfig("ocr");
       try {
         const stored = await this.storage.get(request.input.objectStorageKey);
         if (stored?.body) {
           this.logger.info("Executing Governed Gemini OCR", {
             model: ocrConfig.model,
-            temperature: ocrConfig.temperature,
             sizeBytes: stored.sizeBytes,
           });
 
@@ -56,68 +90,98 @@ Return STRICT JSON:
 }
 Output ONLY valid JSON.`;
 
-          const response = await this.ai.models.generateContent({
-            model: ocrConfig.model,
-            contents: [
+          let rawText: string | null = null;
+          if (this.ai) {
+            try {
+              const res = await this.ai.models.generateContent({
+                model: ocrConfig.model,
+                contents: [
+                  {
+                    role: "user",
+                    parts: [
+                      { text: prompt },
+                      {
+                        inlineData: {
+                          mimeType: stored.mimeType || "image/jpeg",
+                          data: base64Data,
+                        },
+                      },
+                    ],
+                  },
+                ],
+              });
+              rawText = res.text || null;
+            } catch (sdkErr) {
+              this.logger.warn("GoogleGenAI SDK vision error, trying REST fallback", sdkErr);
+            }
+          }
+
+          if (!rawText) {
+            rawText = await this.callGeminiRest(ocrConfig.model, [
               {
                 role: "user",
                 parts: [
                   { text: prompt },
                   {
-                    inlineData: {
-                      mimeType: stored.mimeType || "image/jpeg",
+                    inline_data: {
+                      mime_type: stored.mimeType || "image/jpeg",
                       data: base64Data,
                     },
                   },
                 ],
               },
-            ],
-          });
+            ]);
+          }
 
-          const rawText = response.text || "";
-          const cleaned = rawText.replace(/```json/gi, "").replace(/```/g, "").trim();
-          const parsed = JSON.parse(cleaned);
+          if (rawText) {
+            const cleaned = rawText.replace(/```json/gi, "").replace(/```/g, "").trim();
+            const parsed = JSON.parse(cleaned);
 
-          return {
-            requestId: request.requestId,
-            intent: "capture",
-            responsePolicy: "ack",
-            message: {
-              text: parsed.replyAck || `Saved ✓\n${(parsed.topics || ["Image", "Vision"]).slice(0, 2).join(" · ")}`,
-            },
-            captureResult: {
-              title: parsed.title || "Visual Memory Capture",
-              summary: parsed.summary || parsed.ocrText?.slice(0, 150) || "Image captured via MINDROP",
-              topics: parsed.topics || ["Image", "Visual Note"],
-              entities: parsed.entities || [],
-              keyIdeas: parsed.keyIdeas || [],
-              importanceScore: parsed.importanceScore || 0.85,
-              whyItMatters: parsed.whyItMatters || "Visual note captured from LINE chat.",
-            },
-          };
+            return {
+              requestId: request.requestId,
+              intent: "capture",
+              responsePolicy: "ack",
+              message: {
+                text: parsed.replyAck || `Saved ✓\n${(parsed.topics || ["Image", "Vision"]).slice(0, 2).join(" · ")}`,
+              },
+              captureResult: {
+                title: parsed.title || "Visual Memory Capture",
+                summary: parsed.summary || parsed.ocrText?.slice(0, 150) || "Image captured via MINDROP",
+                topics: parsed.topics || ["Image", "Visual Note"],
+                entities: parsed.entities || [],
+                keyIdeas: parsed.keyIdeas || [],
+                importanceScore: parsed.importanceScore || 0.85,
+                whyItMatters: parsed.whyItMatters || "Visual note captured from LINE chat.",
+              },
+            };
+          }
         }
       } catch (err) {
         this.logger.error("Governed OCR call failed, using fallback", err);
       }
     }
 
-    // 2. CONVERSATIONAL MEMORY QUERY (Governed Task: "chat")
+    // 2. CONVERSATIONAL MEMORY QUERY (Task: "chat")
     const lower = text.toLowerCase();
     const isQuery =
       lower.includes("เคยส่ง") ||
       lower.includes("สรุปเรื่อง") ||
       lower.includes("หา") ||
-      lower.includes("what have i") ||
+      lower.includes("คืออะไร") ||
+      lower.includes("นี่อะไร") ||
+      lower.includes("อะไร") ||
+      lower.includes("สวัสดี") ||
+      lower.includes("what") ||
       lower.includes("find") ||
       lower.includes("summarize") ||
       text.endsWith("?") ||
       text.endsWith("มั้ย") ||
       text.endsWith("ไหม");
 
-    if (isQuery && this.ai) {
+    if (isQuery) {
       const chatConfig = this.governor.getExecutionConfig("chat");
       try {
-        let memoryContext = "No prior memories found.";
+        let memoryContext = "No prior memories recorded yet.";
         if (this.repository) {
           const pastCaptures = await this.repository.listCapturesByActor(request.actorId);
           if (pastCaptures.length > 0) {
@@ -131,27 +195,43 @@ Output ONLY valid JSON.`;
           }
         }
 
-        const queryPrompt = `You are MINDROP — grounded personal intelligence companion.
+        const queryPrompt = `You are MINDROP — a friendly, hyper-intelligent personal knowledge assistant in LINE.
 USER QUESTION: "${text}"
 
 USER'S CAPTURED MEMORY CONTEXT:
 ${memoryContext}
 
-Respond in a warm, concise, intelligent tone in Thai (or user's language).
-Highlight key recurring themes, specific items they saved, and key takeaways.
-Ground answers strictly in memory context.`;
+Respond warmly and helpfully in Thai.
+If they greeted or asked "นี่อะไร", introduce MINDROP briefly as their personal memory assistant (ช่วยบันทึกสรุปข้อความ รูปภาพ และตอบคำถามจากสิ่งที่เคยบันทึกไว้).
+If asking about specific saved topics, summarize based on their actual memory context.`;
 
-        const res = await this.ai.models.generateContent({
-          model: chatConfig.model,
-          contents: queryPrompt,
-        });
+        let replyText: string | null = null;
+        if (this.ai) {
+          try {
+            const res = await this.ai.models.generateContent({
+              model: chatConfig.model,
+              contents: queryPrompt,
+            });
+            replyText = res.text?.trim() || null;
+          } catch (sdkErr) {
+            this.logger.warn("SDK chat failed, trying REST fallback", sdkErr);
+          }
+        }
+
+        if (!replyText) {
+          replyText = await this.callGeminiRest(chatConfig.model, [
+            { role: "user", parts: [{ text: queryPrompt }] },
+          ]);
+        }
 
         return {
           requestId: request.requestId,
           intent: "query_memory",
           responsePolicy: "respond",
           message: {
-            text: res.text?.trim() || `ค้นพบข้อมูลในความทรงจำของคุณเกี่ยวกับ "${text}" เรียบร้อยแล้ว`,
+            text:
+              replyText ||
+              `สวัสดีครับ! ผมคือ MINDROP ผู้ช่วยบันทึกและจัดการความทรงจำส่วนตัวของคุณ สามารถส่งโน้ต รูปภาพ ลิงก์ หรือสอบถามข้อมูลที่เคยบันทึกไว้ได้ตลอดเวลาครับ`,
           },
         };
       } catch (err) {
@@ -159,8 +239,8 @@ Ground answers strictly in memory context.`;
       }
     }
 
-    // 3. TEXT CAPTURE & DEEP ANALYSIS (Governed Task: "analysis")
-    if (this.ai && text) {
+    // 3. TEXT CAPTURE & DEEP ANALYSIS (Task: "analysis")
+    if (text) {
       const analysisConfig = this.governor.getExecutionConfig("analysis");
       try {
         const textPrompt = `You are MINDROP AI Memory Harness.
@@ -179,38 +259,53 @@ Return STRICT JSON:
 }
 Output ONLY valid JSON.`;
 
-        const res = await this.ai.models.generateContent({
-          model: analysisConfig.model,
-          contents: textPrompt,
-        });
+        let rawText: string | null = null;
+        if (this.ai) {
+          try {
+            const res = await this.ai.models.generateContent({
+              model: analysisConfig.model,
+              contents: textPrompt,
+            });
+            rawText = res.text || null;
+          } catch (sdkErr) {
+            this.logger.warn("SDK text analysis failed, trying REST fallback", sdkErr);
+          }
+        }
 
-        const raw = res.text || "";
-        const cleaned = raw.replace(/```json/gi, "").replace(/```/g, "").trim();
-        const parsed = JSON.parse(cleaned);
+        if (!rawText) {
+          rawText = await this.callGeminiRest(analysisConfig.model, [
+            { role: "user", parts: [{ text: textPrompt }] },
+          ]);
+        }
 
-        return {
-          requestId: request.requestId,
-          intent: "capture",
-          responsePolicy: "ack",
-          message: {
-            text: parsed.replyAck || `Saved ✓\n${(parsed.topics || ["Note", "Knowledge"]).slice(0, 2).join(" · ")}`,
-          },
-          captureResult: {
-            title: parsed.title || (text.length > 50 ? `${text.slice(0, 47)}...` : text),
-            summary: parsed.summary || text,
-            topics: parsed.topics || ["Note", "Knowledge"],
-            entities: parsed.entities || [],
-            keyIdeas: parsed.keyIdeas || [],
-            importanceScore: parsed.importanceScore || 0.85,
-            whyItMatters: "Saved in your personal memory stream.",
-          },
-        };
+        if (rawText) {
+          const cleaned = rawText.replace(/```json/gi, "").replace(/```/g, "").trim();
+          const parsed = JSON.parse(cleaned);
+
+          return {
+            requestId: request.requestId,
+            intent: "capture",
+            responsePolicy: "ack",
+            message: {
+              text: parsed.replyAck || `Saved ✓\n${(parsed.topics || ["Note", "Knowledge"]).slice(0, 2).join(" · ")}`,
+            },
+            captureResult: {
+              title: parsed.title || (text.length > 50 ? `${text.slice(0, 47)}...` : text),
+              summary: parsed.summary || text,
+              topics: parsed.topics || ["Note", "Knowledge"],
+              entities: parsed.entities || [],
+              keyIdeas: parsed.keyIdeas || [],
+              importanceScore: parsed.importanceScore || 0.85,
+              whyItMatters: "Saved in your personal memory stream.",
+            },
+          };
+        }
       } catch (err) {
         this.logger.warn("Governed text analysis failed, using fallback", err);
       }
     }
 
-    // Fallback if AI is offline
+    // Fallback if offline
     const isProduct = text.includes("personal knowledge") || text.includes("folder") || text.includes("product");
     const defaultTopics = isProduct ? ["Product", "Ideas", "AI"] : ["Note", "Personal Knowledge"];
 
@@ -219,7 +314,7 @@ Output ONLY valid JSON.`;
       intent: "capture",
       responsePolicy: "ack",
       message: {
-        text: "Saved ✓\nProduct · Idea",
+        text: "Saved ✓\nNote · Personal Knowledge",
       },
       captureResult: {
         title: text.length > 50 ? `${text.slice(0, 47)}...` : text || "Captured Item",
